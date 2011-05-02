@@ -250,20 +250,23 @@ def print_matrix(matrix):
 # main
 if __name__ == '__main__':
 
-    cost_matrix = [[2,  6,  5,  -1, 6,  1,  8,  4,  6],
-                   [2,  1,  2,  7,  9,  -2, 8,  2,  0],
-                   [0,  6,  0,  5,  1,  3,  4,  3,  5],
-                   [7,  0,  8,  9,  2,  4,  1,  6,  7],
-                   [-1, 1,  0,  -3, 0,  2,  2,  2,  1],
-                   [3,  0,  6,  6,  1,  -2, 2,  4,  0],
-                   [1,  7,  1,  9,  4,  8,  2,  6,  8],
-                   [5,  1,  5,  2,  2,  6,  -1, 5,  4],
-                   [3,  6,  0,  6,  3,  0,  9,  1,  2]]
+    cost_matrix = [
+        [2,  6,  5,  -1, 6,  1,  8,  4,  6],
+        [2,  1,  2,  7,  9,  -2, 8,  2,  0],
+        [0,  6,  0,  5,  1,  3,  4,  3,  5],
+        [7,  0,  8,  9,  2,  4,  1,  6,  7],
+        [-1, 1,  0,  -3, 0,  2,  2,  2,  1],
+        [3,  0,  6,  6,  1,  -2, 2,  4,  0],
+        [1,  7,  1,  9,  4,  8,  2,  6,  8],
+        [5,  1,  5,  2,  2,  6,  -1, 5,  4],
+        [3,  6,  0,  6,  3,  0,  9,  1,  2]
+    ]
 
     expected_cost = -2
 
-    m = HungarianAlgorithm()
-    indexes = m.solve(cost_matrix)
+    indexes = HungarianAlgorithm().solve(cost_matrix)
+    print 'Cost Matrix:'
+    print_matrix(cost_matrix)
     total_cost = sum(cost_matrix[i][j] for i, j in indexes)
     print '\nResult:'
     for i, j in indexes:
