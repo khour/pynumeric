@@ -227,12 +227,11 @@ edges = [
 
 
 while True:
-    if iteration(points, edges): break
+    if iteration(points, edges):
+        break
 
 for edge in edges:
     print 'Edge (%s, %s), flow = %d' % (edge.source.name, edge.sink.name, edge.flow)
 
 print 'cx =', sum(edge.cost * edge.flow for edge in edges)
 print 'Total flow =', sum(edge.flow for edge in edges)
-
-print 'FUCK FUCK FUCK'
