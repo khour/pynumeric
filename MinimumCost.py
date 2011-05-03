@@ -234,3 +234,5 @@ for edge in edges:
 
 print 'cx =', sum(edge.cost * edge.flow for edge in edges)
 print 'Total flow =', sum(edge.flow for edge in edges)
+
+print 'FUCK FUCK FUCK'
