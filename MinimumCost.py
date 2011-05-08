@@ -494,7 +494,7 @@ edges = [
 
 test('7', nodes, edges)
 
-# вариант 7
+# вариант 8
 nodes = [
     Node('1', 6),
     Node('2', 1),
