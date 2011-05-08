@@ -5,13 +5,12 @@ import math
 import time
 
 import pulp.constants
-from pulp import LpVariable, LpProblem, lpSum
+from pulp import LpVariable, LpProblem, lpSum, LpInteger
 
 from numpy import matrix
 
 ZERO = 1e-6
-MAX_ITERATIONS_COUNT = 50
-MAX_RESTRICTIONS_COUNT = 30
+MAX_ITERATIONS_COUNT = 100
 
 LpProblem.sortedVariables = lambda self: sorted(
                                 self.variables(),
@@ -52,28 +51,32 @@ def update_b_vector(b, beta):
     return b
 
 
-def trim_problem(A, b, variables, artifitial_j_list):
+def trim_problem(A, b, variables, artifitial_j_list, c):
     """Убирает лишние переменные и ограничения"""
-    offset = 3
-    artifitial_j_list = [j - offset for j in artifitial_j_list]
-    for j in artifitial_j_list:
-        j_col = j + offset
-        row = [aij / A[j][j_col] for aij in A[j]]
-        for i, next_row in enumerate(A[j + 1 :]):
-            A[j + 1 + i] = [aij_next - aij_prev * next_row[j_col]
-                            for aij_next, aij_prev in zip(next_row, row)]
-
-    new_A = []
-    for i, row in enumerate(A):
-        if i not in artifitial_j_list:
-            new_A.append([aij for j, aij in enumerate(row)
-                              if j - offset not in artifitial_j_list])
-
-    new_b = [bj for i, bj in enumerate(b) if i not in artifitial_j_list]
-    new_variables = [var for j, var in enumerate(variables)
-                         if j - offset not in artifitial_j_list]
-
-    return new_A, new_b, new_variables
+    if artifitial_j_list == []:
+        return A, b, variables
+        
+    j = artifitial_j_list[0]
+    
+    original_A_length = len(A) - (len(variables) - len(c))
+    row_index = len(A) + j - len(variables)
+    
+    row = [aij / A[row_index][j] for aij in A[row_index]]
+    for i, next_row in enumerate(A[row_index + 1 :]):
+        edited_row = [aij_next - aij_prev * next_row[j]
+                      for aij_next, aij_prev in zip(next_row, row)]
+        A[row_index + 1 + i] = edited_row
+        b[row_index + 1 + i] -= b[row_index] * next_row[j]
+    
+    A = [[el for i, el in enumerate(row) if i != j] for row in A]
+    A = A[:row_index] + A[row_index + 1:]
+    b = b[:row_index] + b[row_index + 1:]
+    
+    artifitial_j_list.remove(j)
+    artifitial_j_list = [j - 1 for j in artifitial_j_list]
+    variables = variables[:j] + variables[j + 1:]
+    
+    return trim_problem(A, b, variables, artifitial_j_list, c)
 
 
 def prepare_problem(A, b, c):
@@ -99,63 +102,42 @@ def iteration(A, b, c):
 
     # Шаг 1: решить задачу ЛП
     status = problem.solve()
-    print pulp.constants.LpStatus[status]
-
     variables = problem.sortedVariables()
 
-    print
-    for var in variables:
-        print var.name, '=', var.varValue
-
     # Шаг 2: убрать лишние переменные и ограничения
-    if len(A) >= MAX_RESTRICTIONS_COUNT:
-        j_list = [j for j, var in enumerate(variables)
-                    if var.varValue > ZERO]
-        artifitial_j_list = [j for j in j_list if j >= len(A)]
-        A, b, variables = trim_problem(A, b, variables, artifitial_j_list)
+    j_list = [j for j, var in enumerate(variables) if var.varValue > ZERO]
+    artifitial_j_list = [j for j in j_list if j >= len(c)]
+    if artifitial_j_list != []:
+        A, b, variables = trim_problem(A, b, variables, artifitial_j_list, c)
         # return None, A, b
 
     # Шаг 3: проверка решения на целочисленность
     x_list = [var.varValue for var in variables]
-    if all(is_int(x) for x in x_list):
-        print 'Integer solution'
+    if all(is_int(x) for x in x_list[:len(c)]):
         return x_list[:len(c)], A, b
-    else:
-        print 'Not integer solution'
 
     # Шаг 4: сформировать ограничение
     # вычислить базисные индексы
     j_list = [j for j, var in enumerate(variables) if var.varValue > ZERO]
-    print '\nBasis indexes:\n', j_list
-
     # построить базисную матрицу
     basis_matrix = [[aij for j, aij in enumerate(aj) if j in j_list]
                          for aj in A]
     B = matrix(basis_matrix).getI()
-    print '\nInverted basis matrix:\n', B
 
     j0 = calc_j0_index(variables, j_list)
+    
     # единичный вектор :D
     e = matrix(map(lambda i: 0 if i != j0 else 1,
                    xrange(len(j_list)))).getT()
-    print '\ne:\n', e
 
     y = (e.getT() * B).getT()
-    print '\ny:\n', y
-
     alpha = (y.getT() * matrix(A)).tolist()[0]
-    print '\nalpha:\n', alpha
-
     beta = (y.getT() * matrix(b).getT()).item()
-    print '\nbeta:\n', beta
 
     # Шаг 5: добавить ограничение
     A = update_A_matrix(A, alpha)
     b = update_b_vector(b, beta)
-
-    print '\nA:\n', matrix(A)
-    print '\nb:\n', matrix(b).getT()
-
+    
     return None, A, b
 
 def solve(A, b, c):
@@ -164,37 +146,170 @@ def solve(A, b, c):
     x_list = None
 
     while x_list is None and iteration_count < MAX_ITERATIONS_COUNT:
-        print '\n\n        Iteration %s...\n' % iteration_count
         x_list, A, b = iteration(A, b, c)
         iteration_count += 1
+    
+    if x_list is None:
+        return None, None, iteration_count
+    else:
+        return (x_list,
+                sum(ci * xi for ci, xi in zip(c, x_list)),
+                iteration_count)
 
-    print '\nResult solution:\n', x_list
-    print 'cx =', sum(ci * xi for ci, xi in zip(c, x_list))
 
+def pulp_solve(A, b, c):
+    problem = LpProblem(sense = pulp.constants.LpMaximize)
 
+    x = [LpVariable('x' + str(i + 1),
+                    0,
+                    None,
+                    LpInteger)
+         for i in xrange(len(c))]
+
+    problem += lpSum(ci * xi for ci, xi in zip(c, x))
+
+    for ai, bi in zip(A, b):
+        problem += lpSum(aij * xj for aij, xj in zip(ai, x)) == bi
+    
+    status = problem.solve()
+    
+    return (pulp.constants.LpStatus[status],
+            [variable.varValue for variable in problem.sortedVariables()],
+            problem.objective.value())
+
+import sys
+stdout = sys.stdout
+
+f = open('CuttingPlane.txt', 'w+')
+
+def test(msg, A, b, c):
+    sys.stdout = f
+    print '\n', msg,
+    sys.stdout = stdout
+    status, solution, cx = pulp_solve(A, b, c)
+    if status == 'Optimal':
+        x_list, cx, iteration_count = solve(A, b, c)
+        sys.stdout = f
+        print ':', iteration_count, 'iterations'
+        print x_list
+        print 'cx =', cx
+        sys.stdout = stdout
+    else:
+        sys.stdout = f
+        print '\nHas no solution'
+        sys.stdout = stdout
+
+# вариант 1
 A = [
-    [0, 7,  -8, -1, 5,  2,  1],
-    [3, 2,  1,  -3, -1, 1,  0],
-    [1, 5,  3,  -1, -2, 1,  0],
-    [1, 1,  1,  1,  1,  1,  1],
+    [1,-5,3,1,0,0],
+    [4,-1,1,0,1,0],
+    [2,4,2,0,0,1],
 ]
 
-b = [
-    6,
-    3,
-    7,
-    7,
+b = [-8,22,30]
+c = [7,-2,6,0,5,2]
+
+test('1', A, b, c)
+
+# вариант 2, не считает
+A = [
+    [1,-3,2,0,1,-1,4,-1,0],
+    [1,-1,6,1,0,-2,2,2,0],
+    [2,2,-1,1,0,-3,8,-1,1],
+    [4,1,0,0,1,-1,0,-1,1],
+    [1,1,1,1,1,1,1,1,1],
 ]
 
-c = [
-    2,
-    9,
-    3,
-    5,
-    1,
-    2,
-    4,
+b = [3,9,9,5,9]
+c = [-1,5,-2,4,3,1,2,8,3]
+
+test('2', A, b, c)
+
+# вариант 3
+A = [
+    [1, 0,  0,  12, 1,  -3, 4,  -1],
+    [0, 1,  0,  11, 12, 3,  5,  3],
+    [0, 0,  1,  1,  0,  22, -2, 1],
 ]
 
-solve(A, b, c)
+b = [40,107,61]
+c = [2,1,-2,-1,4,-5,5,5]
 
+test('3', A, b, c)
+
+# вариант 4, не считает
+A = [
+    [1,2,3,12,1,-3,4,-1,2,3],
+    [0,2,0,11,12,3,5,3,4,5],
+    [0,0,2,1,0,22,-2,1,6,7],
+]
+
+b = [153,123,112]
+c = [2,1,-2,-1,4,-5,5,5,1,2]
+
+test('4', A, b, c)
+
+# вариант 5
+A = [
+    [2,1,-1,-3,4,7],
+    [0,1,1,1,2,4],
+    [6,-3,-2,1,1,1],
+]
+
+b = [7,16,6]
+c = [1,2,1,-1,2,3]
+
+test('5', A, b, c)
+
+# вариант 6
+A = [
+    [0,7,1,-1,-4,2,4],
+    [5,1,4,3,-5,2,1],
+    [2,0,3,1,0,1,5],
+]
+
+b = [12,27,19]
+c = [10,2,1,7,6,3,1]
+
+test('6', A, b, c)
+
+# вариант 7
+A = [
+    [0,7,-8,-1,5,2,1],
+    [3,2,1,-3,-1,1,0],
+    [1,5,3,-1,-2,1,0],
+    [1,1,1,1,1,1,1],
+]
+
+b = [6,3,7,7]
+c = [2,9,3,5,1,2,4]
+
+test('7', A, b, c)
+
+# вариант 8
+A = [
+    [1,0,-1,3,-2,0,1],
+    [0,2,1,-1,0,3,-1],
+    [1,2,1,4,2,1,1],
+]
+
+b = [4,8,24]
+c = [-1,-3,-7,0,-4,0,-1]
+
+test('8', A, b, c)
+
+# вариант 9
+A = [
+    [1,-3,2,0,1,-1,4,-1,0],
+    [1,-1,6,1,0,-2,2,2,0],
+    [2,2,-1,1,0,-3,2,-1,1],
+    [4,1,0,0,1,-1,0,-1,1],
+    [1,1,1,1,1,1,1,1,1],
+]
+
+b = [3,9,9,5,9]
+c = [-1,5,-2,4,3,1,2,8,3]
+
+test('9', A, b, c)
+
+f.close()

@@ -33,9 +33,12 @@ class HungarianAlgorithm:
                   4 : self.__step4,
                   5 : self.__step5,
                   6 : self.__step6 }
-
+        
+        iteration_count = 1
         step = 1
         while step < 7:
+            if step == 3:
+                iteration_count += 1
             func = steps[step]
             step = func()
 
@@ -43,7 +46,7 @@ class HungarianAlgorithm:
         results = [(i, j) for i, row in enumerate(self.marked) \
                           for j, el in enumerate(row) if el == 1]
 
-        return results
+        return results, iteration_count
 
     def __make_matrix(self, n, val):
         """Создать n x n матрицу, заполненную val."""
@@ -122,7 +125,7 @@ class HungarianAlgorithm:
         Z1 - первый помеченный нуль в столбце Z0. Z2 - главный нуль в
         строке Z1. Строить до тех пор, пока не появится главный нуль, в
         столбце которого нет помеченных нолей.
-        Снять метку со всех помеченных нолей в цепи, пометить главные.
+        Снять метку со всех помеченных нулей в цепи, пометить главные.
         Обнулить все главные нули, сбросить покрытие. Перейти на шаг 3.
         """
         path = self.path
@@ -250,27 +253,142 @@ def print_matrix(matrix):
 # main
 if __name__ == '__main__':
 
+    import sys
+    stdout = sys.stdout
+
+    f = open('HungarianAlgorithm.txt', 'w+')
+
+    def test(msg, cost_matrix):
+        sys.stdout = f
+        print '\n', msg,
+        sys.stdout = stdout
+        indexes, iteration_count = HungarianAlgorithm().solve(cost_matrix)
+        sys.stdout = f
+        print ':', iteration_count, 'iterations'
+        for index in indexes:
+            print index[0] + 1, '\t',
+        print
+        for index in indexes:
+            print index[1] + 1, '\t',
+        print
+        print 'Total cost:', sum(cost_matrix[i][j] for i, j in indexes)
+        sys.stdout = stdout
+        
+    
+    # вариант 1
     cost_matrix = [
-        [2,  6,  5,  -1, 6,  1,  8,  4,  6],
-        [2,  1,  2,  7,  9,  -2, 8,  2,  0],
-        [0,  6,  0,  5,  1,  3,  4,  3,  5],
-        [7,  0,  8,  9,  2,  4,  1,  6,  7],
-        [-1, 1,  0,  -3, 0,  2,  2,  2,  1],
-        [3,  0,  6,  6,  1,  -2, 2,  4,  0],
-        [1,  7,  1,  9,  4,  8,  2,  6,  8],
-        [5,  1,  5,  2,  2,  6,  -1, 5,  4],
-        [3,  6,  0,  6,  3,  0,  9,  1,  2]
+        [6,     4,  13, 4,  19, 15, 11, 8],
+        [17,    15, 18, 14, 0,  7,  18, 7],
+        [3,     5,  11, 9,  7,  7,  18, 16],
+        [17,    10, 16, 19, 9,  6,  1,  5],
+        [14,    2,  10, 13, 11, 6,  4,  10],
+        [17,    11, 17, 12, 1,  10, 6,  19],
+        [13,    1,  4,  2,  2,  7,  2,  14],
+        [12,    15, 19, 11, 13, 1,  7,  8],
     ]
 
-    expected_cost = -2
+    test('1', cost_matrix)
+    
+    # вариант 2
+    cost_matrix = [
+        [9,6,4,9,3,8,0],
+        [5,8,6,8,8,3,5],
+        [5,2,1,1,8,6,8],
+        [1,0,9,2,5,9,2],
+        [9,2,3,3,0,3,0],
+        [7,3,0,9,4,5,6],
+        [0,9,6,0,8,8,9],
+    ]
+    
+    test('2', cost_matrix)
+    
+    # вариант 3
+    cost_matrix = [
+        [6,6,2,4,7,1,9,4,6],
+        [5,0,2,4,9,2,9,2,0],
+        [7,6,0,5,2,3,0,5,5],
+        [9,5,8,9,2,3,1,5,7],
+        [3,1,7,3,0,2,2,8,1],
+        [3,0,0,6,1,7,2,4,7],
+        [5,6,1,9,9,8,4,1,8],
+        [5,4,5,2,2,6,6,5,6],
+        [3,6,1,6,3,0,5,2,2],
+    ]
+    
+    test('3', cost_matrix)
+    
+    # вариант 4
+    cost_matrix = [
+        [6,5,6,8,4,0,4,6],
+        [5,7,8,7,4,4,0,9],
+        [0,7,9,2,8,7,0,3],
+        [6,6,6,3,0,3,0,8],
+        [7,4,7,1,1,1,8,9],
+        [8,0,7,5,0,9,1,3],
+        [3,2,4,7,1,7,3,4],
+        [9,2,4,3,2,4,3,9],
+    ]
+    
+    test('4', cost_matrix)
+    
+    # вариант 5
+    cost_matrix = [
+        [7,4,5,3,8,9,6,5,5,3,2],
+        [5,6,9,4,9,0,0,4,4,7,2],
+        [8,8,3,2,7,3,7,6,7,4,6],
+        [7,4,9,9,3,7,3,8,1,5,8],
+        [5,2,4,3,3,9,6,2,5,1,3],
+        [9,4,5,8,6,3,3,1,7,6,5],
+        [9,1,0,3,1,2,7,6,9,4,6],
+        [5,6,8,0,9,9,1,9,3,0,8],
+        [4,6,5,6,4,7,5,3,8,0,1],
+        [2,3,7,8,4,9,5,0,2,8,0],
+        [7,6,7,1,9,5,7,4,2,3,0],
+    ]
+    
+    test('5', cost_matrix)
+    
+    # вариант 6
+    cost_matrix = [
+        [7,-4,5,3,8,9,6,5],
+        [5,6,9,4,9,0,0,4],
+        [8,8,3,-2,7,-3,7,6],
+        [7,4,9,9,3,7,3,8],
+        [5,2,4,3,3,9,6,2],
+        [9,4,5,8,6,3,3,1],
+        [9,1,0,-3,1,2,7,6],
+        [5,6,8,0,9,9,1,9],
+    ]
+    
+    test('6', cost_matrix)
+    
+    # вариант 7
+    cost_matrix = [
+        [2,6,5,-1,6,1,8,4,6],
+        [2,1,2,7,9,-2,8,2,0],
+        [0,6,0,5,1,3,4,3,5],
+        [7,0,8,9,2,4,1,6,7],
+        [-1,1,0,-3,0,2,2,2,1],
+        [3,0,6,6,1,-2,2,4,0],
+        [1,7,1,9,4,8,2,6,8],
+        [5,1,5,2,2,6,-1,5,4],
+        [3,6,0,6,3,0,9,1,2],
+    ]
+    
+    test('7', cost_matrix)
+    
+    # вариант 8
+    cost_matrix = [
+        [2,4,0,3,8,-1,6,5],
+        [8,6,3,4,2,0,0,4],
+        [8,-4,3,2,7,3,1,0],
+        [2,4,9,5,3,0,3,8],
+        [5,2,7,3,-1,0,3,2],
+        [3,2,5,1,5,3,0,1],
+        [2,1,0,-3,1,2,7,0],
+        [1,6,4,0,0,9,1,7],
+    ]
+    
+    test('8', cost_matrix)
 
-    indexes = HungarianAlgorithm().solve(cost_matrix)
-    print 'Cost Matrix:'
-    print_matrix(cost_matrix)
-    total_cost = sum(cost_matrix[i][j] for i, j in indexes)
-    print '\nResult:'
-    for i, j in indexes:
-        print '(%d, %d) -> %d' % (i + 1, j + 1, cost_matrix[i][j])
-    print '\nTotal cost:', total_cost
-    assert total_cost == expected_cost
-
+    f.close()
